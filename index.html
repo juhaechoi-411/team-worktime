@@ -191,13 +191,6 @@
   </div>
 
   <div class="win">
-    <div class="win-bar red"><div class="dots"><span></span><span></span><span></span></div><div class="title">규정 설정 (팀 공통)</div></div>
-    <div class="win-body">
-      <div class="settings-grid" id="settingsGrid"></div>
-    </div>
-  </div>
-
-  <div class="win">
     <div class="win-bar mustard"><div class="dots"><span></span><span></span><span></span></div><div class="title">출퇴근 입력</div><span class="selected-tag" id="selectedTag"></span></div>
     <div class="win-body">
       <div class="entry-form">
@@ -214,6 +207,23 @@
   <div class="win">
     <div class="win-bar navy"><div class="dots"><span></span><span></span><span></span></div><div class="title">개인 기록</div></div>
     <div class="win-body"><div id="listArea"><div class="empty">불러오는 중...</div></div></div>
+  </div>
+
+  <div class="win">
+    <div class="win-bar mustard"><div class="dots"><span></span><span></span><span></span></div><div class="title">월별 현황</div>
+      <select id="monthSelect" style="margin-left:auto;font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:12px;font-weight:700;border:none;border-radius:999px;padding:4px 10px;background:rgba(255,255,255,0.25);color:#fff;"></select>
+    </div>
+    <div class="win-body">
+      <div class="team-grid" id="monthGrid"></div>
+      <div id="monthPersonalList" style="margin-top:16px;"></div>
+    </div>
+  </div>
+
+  <div class="win">
+    <div class="win-bar red"><div class="dots"><span></span><span></span><span></span></div><div class="title">규정 설정 (팀 공통)</div></div>
+    <div class="win-body">
+      <div class="settings-grid" id="settingsGrid"></div>
+    </div>
   </div>
 
   <div class="sticky yellow">
@@ -239,7 +249,8 @@ const ROSTER = Object.keys(SCHEDULE);
 const DEFAULT_SETTINGS = {
   standardHours: 8,
   lunchEnabled: true, lunchStart: "12:30", lunchEnd: "13:30", lunchDuration: 1,
-  dinnerEnabled: true, dinnerThresholdHours: 10, dinnerDuration: 0.5
+  dinnerEnabled: true, dinnerThresholdHours: 10, dinnerDuration: 0.5,
+  otMinThresholdHours: 2
 };
 
 let settings = {...DEFAULT_SETTINGS};
@@ -379,7 +390,8 @@ function calcEntry(e, s, name){
   }
   const net = Math.max(0, afterDinner);
   const standard = s.standardHours*60;
-  const overtime = Math.max(0, net - standard);
+  let overtime = Math.max(0, net - standard);
+  if(s.otMinThresholdHours && overtime < s.otMinThresholdHours*60) overtime = 0; // 최소 인정시간 미만은 야근 미반영
   return {worked, brk: worked-net, net, overtime};
 }
 
@@ -411,6 +423,29 @@ function weeklyTotalsFor(name){
     weeks[key].totalNet += c.net;
   });
   return weeks;
+}
+
+const monthKeyOf = dateStr => dateStr.slice(0,7); // "YYYY-MM"
+const monthLabel = mk => { const [y,m] = mk.split('-'); return `${y}년 ${Number(m)}월`; };
+
+function monthlyTotalsFor(name){
+  const list = allEntries[name] || [];
+  const months = {};
+  list.forEach(e=>{
+    const mk = monthKeyOf(e.date);
+    if(!months[mk]) months[mk] = {totalOT:0, totalNet:0};
+    const c = calcEntry(e, settings, name);
+    months[mk].totalOT += c.overtime;
+    months[mk].totalNet += c.net;
+  });
+  return months;
+}
+
+function allMonthKeys(){
+  const set = new Set();
+  ROSTER.forEach(n=>{ (allEntries[n]||[]).forEach(e=> set.add(monthKeyOf(e.date))); });
+  set.add(new Date().toISOString().slice(0,7));
+  return Array.from(set).sort().reverse();
 }
 
 function applySchedule(name){
@@ -446,7 +481,7 @@ function renderTeamGrid(){
     t.addEventListener('click', ()=>{
       selectedMember = t.dataset.name;
       persistSelected();
-      renderMemberSelect(); renderTeamGrid(); renderLedger(); applySchedule(selectedMember);
+      renderMemberSelect(); renderTeamGrid(); renderLedger(); renderMonthly(); applySchedule(selectedMember);
       $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
     });
   });
@@ -463,10 +498,12 @@ function renderSettings(){
     <div class="toggle-row"><input type="checkbox" id="dinnerOn" ${settings.dinnerEnabled?'checked':''}><span>저녁시간 자동 차감</span></div>
     <div class="field"><label>기준 시간(출근시간 기준, 시간)</label><input type="number" id="dinnerThreshold" min="0" max="24" step="0.5" value="${settings.dinnerThresholdHours}" ${!settings.dinnerEnabled?'disabled':''}><span class="hint">예: 10 → (보정된) 출근 후 10시간 지나면 적용</span></div>
     <div class="field"><label>차감 시간(시간)</label><input type="number" id="dinnerDur" min="0" max="4" step="0.5" value="${settings.dinnerDuration}" ${!settings.dinnerEnabled?'disabled':''}><span class="hint">예: 0.5 = 30분</span></div>
+    <div class="field"><label>야근 인정 최소시간(시간)</label><input type="number" id="otMinThreshold" min="0" max="8" step="0.5" value="${settings.otMinThresholdHours}"><span class="hint">예: 2 → 초과근무가 2시간 미만이면 야근 미반영</span></div>
+    <div class="field"></div>
   `;
   const bind=(id,key,parse)=>$(id).addEventListener('change', e=>{
     settings[key] = parse ? parse(e.target.value) : e.target.value;
-    saveSettings(); renderTeamGrid(); renderLedger();
+    saveSettings(); renderTeamGrid(); renderLedger(); renderMonthly();
   });
   bind('stdHours','standardHours',Number);
   bind('lunchStart','lunchStart');
@@ -474,8 +511,9 @@ function renderSettings(){
   bind('lunchDur','lunchDuration',Number);
   bind('dinnerThreshold','dinnerThresholdHours',Number);
   bind('dinnerDur','dinnerDuration',Number);
-  $('lunchOn').addEventListener('change', e=>{settings.lunchEnabled=e.target.checked; saveSettings(); renderSettings(); renderTeamGrid(); renderLedger();});
-  $('dinnerOn').addEventListener('change', e=>{settings.dinnerEnabled=e.target.checked; saveSettings(); renderSettings(); renderTeamGrid(); renderLedger();});
+  bind('otMinThreshold','otMinThresholdHours',Number);
+  $('lunchOn').addEventListener('change', e=>{settings.lunchEnabled=e.target.checked; saveSettings(); renderSettings(); renderTeamGrid(); renderLedger(); renderMonthly();});
+  $('dinnerOn').addEventListener('change', e=>{settings.dinnerEnabled=e.target.checked; saveSettings(); renderSettings(); renderTeamGrid(); renderLedger(); renderMonthly();});
 }
 
 function renderLedger(){
@@ -518,9 +556,72 @@ function renderLedger(){
   document.querySelectorAll('.btn.del').forEach(b=>{
     b.addEventListener('click', ()=>{
       allEntries[selectedMember] = (allEntries[selectedMember]||[]).filter(e=>e.id!==b.dataset.id);
-      saveEntries(); renderTeamGrid(); renderLedger();
+      saveEntries(); renderTeamGrid(); renderLedger(); renderMonthly();
     });
   });
+}
+
+function renderMonthly(){
+  const monthKeys = allMonthKeys();
+  const prevVal = $('monthSelect').value;
+  const optionsHtml = monthKeys.map(mk=>`<option value="${mk}">${monthLabel(mk)}</option>`).join('');
+  if($('monthSelect').innerHTML !== optionsHtml){
+    $('monthSelect').innerHTML = optionsHtml;
+  }
+  const selectedMonth = (prevVal && monthKeys.includes(prevVal)) ? prevVal : monthKeys[0];
+  $('monthSelect').value = selectedMonth;
+
+  $('monthGrid').innerHTML = ROSTER.map(name=>{
+    const months = monthlyTotalsFor(name);
+    const m = months[selectedMonth] || {totalOT:0, totalNet:0};
+    const sc = SCHEDULE[name];
+    return `<div class="member-tile ${name===selectedMember?'active':''}" data-name="${name}">
+      <div class="name">${name}</div>
+      <div class="group">${sc.group} · ${sc.start}~${sc.end}</div>
+      <div class="hrs-worked">근무 ${fmtHM(m.totalNet)}</div>
+      <div class="hrs ${m.totalOT>0?'':''}">야근 ${fmtHM(m.totalOT)}</div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('#monthGrid .member-tile').forEach(t=>{
+    t.addEventListener('click', ()=>{
+      selectedMember = t.dataset.name;
+      persistSelected();
+      renderMemberSelect(); renderTeamGrid(); renderLedger(); renderMonthly(); applySchedule(selectedMember);
+      $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
+    });
+  });
+
+  const list = (allEntries[selectedMember]||[])
+    .filter(e => monthKeyOf(e.date) === selectedMonth)
+    .map(e => ({...e, ...calcEntry(e, settings, selectedMember)}))
+    .sort((a,b)=> b.date.localeCompare(a.date));
+
+  if(list.length===0){
+    $('monthPersonalList').innerHTML = `<div class="empty">${selectedMember}님의 ${monthLabel(selectedMonth)} 기록이 없어요.</div>`;
+    return;
+  }
+  let totalNet=0, totalOT=0;
+  list.forEach(it=>{ totalNet+=it.net; totalOT+=it.overtime; });
+  const over = totalOT > 720*4.35; // 대략적인 월 환산 참고선 (법정 기준은 주 단위이므로 참고용)
+  let html = `<div class="week-group">
+    <div class="week-head navy">
+      <div><div class="range">${monthLabel(selectedMonth)} · ${selectedMember}</div></div>
+      <div class="total-block">
+        <div class="total-worked">총 근무 ${fmtHM(totalNet)}</div>
+        <div class="total">야근 ${fmtHM(totalOT)}</div>
+      </div>
+    </div>`;
+  list.forEach(it=>{
+    const d = new Date(it.date+"T00:00:00");
+    const wd = ['일','월','화','수','목','금','토'][d.getDay()];
+    html += `<div class="day-row">
+      <div class="date">${d.getMonth()+1}/${d.getDate()}(${wd})</div>
+      <div class="times">${it.inStart} → ${it.inEnd} · 근무 ${(it.net/60).toFixed(1)}h</div>
+      <div class="right"><div class="ot ${it.overtime>0?'has':'zero'}">${it.overtime>0? '+'+fmtHM(it.overtime) : '-'}</div></div>
+    </div>`;
+  });
+  html += `</div>`;
+  $('monthPersonalList').innerHTML = html;
 }
 
 async function saveSettings(){
@@ -539,7 +640,7 @@ async function loadAll(){
   if(!conn){
     showStorageSetup(true);
     ROSTER.forEach(n=>{ if(!allEntries[n]) allEntries[n]=[]; });
-    renderMemberSelect(); renderSettings(); renderTeamGrid(); renderLedger(); applySchedule(selectedMember);
+    renderMemberSelect(); renderSettings(); renderTeamGrid(); renderLedger(); renderMonthly(); applySchedule(selectedMember);
     $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
     return;
   }
@@ -561,6 +662,7 @@ async function loadAll(){
   renderSettings();
   renderTeamGrid();
   renderLedger();
+  renderMonthly();
   applySchedule(selectedMember);
   $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
 }
@@ -569,7 +671,7 @@ $('inDate').value = new Date().toISOString().slice(0,10);
 $('memberSelect').addEventListener('change', e=>{
   selectedMember = e.target.value;
   persistSelected();
-  renderTeamGrid(); renderLedger(); applySchedule(selectedMember);
+  renderTeamGrid(); renderLedger(); renderMonthly(); applySchedule(selectedMember);
   $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
 });
 $('addBtn').addEventListener('click', async ()=>{
@@ -580,7 +682,10 @@ $('addBtn').addEventListener('click', async ()=>{
   allEntries[name].push({id: Date.now().toString()+Math.random().toString(36).slice(2,6), date, inStart, inEnd});
   const ok = await saveEntries();
   if(!ok) alert('저장에 실패했어요. 인터넷 연결을 확인하거나 저장소 코드가 맞는지 다시 확인해주세요.');
-  renderTeamGrid(); if(name===selectedMember) renderLedger();
+  renderTeamGrid(); renderMonthly(); if(name===selectedMember) renderLedger();
+});
+$('monthSelect').addEventListener('change', ()=>{
+  renderMonthly();
 });
 $('refreshBtn').addEventListener('click', async ()=>{
   $('refreshBtn').textContent = '불러오는 중…';
