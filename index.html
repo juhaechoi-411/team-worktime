@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>팀 야근관리대장</title>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css" />
+<style>
+  :root{
+    --sky-a:#CDEBFF; --sky-b:#5FA9EE;
+    --bg:#F2F7FC;
+    --white:#FFFFFF;
+    --ink:#1B1E2B; --muted:#6B7280;
+    --dot-red:#FF5F57; --dot-yellow:#FFBD2E; --dot-green:#28C840;
+    --bar-blue:#3B82F6; --bar-blue-deep:#2563EB;
+    --bar-red:#F0455C; --bar-red-deep:#D6304A;
+    --bar-mustard:#E8A93B; --bar-mustard-deep:#CE8F22;
+    --bar-navy:#2B3550;
+    --sticky-yellow:#F5EFA0; --sticky-yellow-line:#E3DA7A;
+    --sticky-blue:#CDE8FF; --sticky-blue-line:#A9D2F5;
+    --line:#E2E8F5;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);font-family:'Pretendard Variable','Pretendard',sans-serif;color:var(--ink);}
+
+  /* Top meta bar */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:10px 22px;background:linear-gradient(180deg,#EAF6FF,#CFE9FC);
+    border-bottom:1px solid rgba(60,110,160,0.15);font-size:12px;color:#37587a;font-weight:600;
+  }
+  .topbar .icons{display:flex;gap:14px;opacity:0.55;}
+  .topbar .icons svg{width:16px;height:16px;}
+
+  /* Hero */
+  .hero{
+    background:linear-gradient(180deg,var(--sky-a),var(--sky-b));
+    padding:56px 20px 46px;text-align:center;
+  }
+  .hero h1{
+    font-family:'Pretendard Variable','Pretendard',sans-serif;font-weight:800;
+    font-size:clamp(34px,7vw,64px);line-height:1.15;margin:0;
+    color:#fff;
+    -webkit-text-stroke:1px rgba(30,70,120,0.2);
+    text-shadow:0 6px 0 rgba(20,55,100,0.18), 0 14px 24px rgba(20,55,100,0.25);
+    letter-spacing:-0.5px;
+  }
+  .hero .tag{
+    margin-top:14px;font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:13px;font-weight:600;
+    color:#fff;background:rgba(255,255,255,0.25);display:inline-block;
+    padding:6px 16px;border-radius:999px;border:1px solid rgba(255,255,255,0.5);
+    letter-spacing:1px;
+  }
+
+  .wrap{max-width:800px;margin:-20px auto 60px;padding:0 18px;position:relative;}
+
+  /* Mac window card */
+  .win{background:var(--white);border-radius:14px;overflow:hidden;
+    box-shadow:0 14px 30px rgba(30,60,110,0.14);margin-bottom:22px;border:1px solid rgba(0,0,0,0.04);}
+  .win-bar{display:flex;align-items:center;gap:10px;padding:11px 16px;color:#fff;}
+  .win-bar .dots{display:flex;gap:6px;}
+  .win-bar .dots span{width:10px;height:10px;border-radius:50%;display:inline-block;}
+  .win-bar .dots span:nth-child(1){background:var(--dot-red);}
+  .win-bar .dots span:nth-child(2){background:var(--dot-yellow);}
+  .win-bar .dots span:nth-child(3){background:var(--dot-green);}
+  .win-bar .title{font-family:'Pretendard Variable','Pretendard',sans-serif;font-weight:700;font-size:13px;letter-spacing:0.5px;margin-left:2px;}
+  .win-bar.blue{background:linear-gradient(180deg,var(--bar-blue),var(--bar-blue-deep));}
+  .win-bar.red{background:linear-gradient(180deg,var(--bar-red),var(--bar-red-deep));}
+  .win-bar.mustard{background:linear-gradient(180deg,var(--bar-mustard),var(--bar-mustard-deep));}
+  .win-bar.navy{background:var(--bar-navy);}
+  .win-body{padding:18px 20px;}
+
+  /* Team grid */
+  .team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:10px;}
+  .member-tile{background:#F8FAFF;border:2px solid var(--line);border-radius:12px;padding:11px 13px;cursor:pointer;
+    transition:transform .1s ease, border-color .15s ease;}
+  .member-tile:hover{transform:translateY(-2px);}
+  .member-tile.active{border-color:var(--bar-blue);background:#EAF2FF;}
+  .member-tile .name{font-family:'Pretendard Variable','Pretendard',sans-serif;font-weight:600;font-size:15px;}
+  .member-tile .group{display:inline-block;margin-top:4px;font-size:10px;font-weight:700;color:#fff;
+    background:var(--bar-blue-deep);padding:2px 8px;border-radius:999px;}
+  .member-tile .hrs-worked{font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:12px;margin-top:8px;color:var(--ink);font-weight:600;}
+  .member-tile .hrs{font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:12.5px;margin-top:3px;color:var(--muted);font-weight:600;}
+  .member-tile .hrs.over{color:var(--bar-red-deep);}
+  .member-tile .gauge{height:5px;background:var(--line);border-radius:3px;overflow:hidden;margin-top:6px;}
+  .member-tile .gauge-fill{height:100%;background:var(--bar-blue);}
+  .member-tile .gauge-fill.over{background:var(--bar-red);}
+
+  /* Settings & form */
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 18px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:11.5px;color:var(--muted);font-weight:600;}
+  .field .hint{font-size:10.5px;color:var(--muted);font-weight:400;}
+  .field input,.field select{
+    font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:14px;padding:8px 10px;border:1.5px solid var(--line);
+    background:#F8FAFF;border-radius:10px;color:var(--ink);
+  }
+  .field input:focus,.field select:focus,.toggle-row input:focus{outline:2px solid var(--bar-blue);outline-offset:1px;}
+  .toggle-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink);grid-column:1/-1;font-weight:600;}
+  .toggle-row input{width:16px;height:16px;accent-color:var(--bar-blue);}
+
+  .entry-form{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;}
+  .entry-form .field{flex:1;min-width:110px;}
+
+  .btn{font-family:'Pretendard Variable','Pretendard',sans-serif;font-weight:700;font-size:13px;
+    padding:10px 18px;border:none;border-radius:999px;cursor:pointer;
+    background:var(--bar-blue);color:#fff;transition:transform .08s ease, background .15s ease;}
+  .btn:hover{background:var(--bar-blue-deep);}
+  .btn:active{transform:scale(0.96);}
+  .btn.del{background:transparent;color:var(--bar-red-deep);border:1.5px solid var(--bar-red);padding:5px 12px;font-size:11px;}
+  .btn.del:hover{background:var(--bar-red);color:#fff;}
+
+  /* Sticky note */
+  .sticky{border-radius:2px;padding:14px 16px;margin-top:14px;position:relative;
+    font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:15px;line-height:1.5;box-shadow:3px 4px 10px rgba(0,0,0,0.12);}
+  .sticky.yellow{background:var(--sticky-yellow);border:1px solid var(--sticky-yellow-line);transform:rotate(-0.6deg);}
+  .sticky.blue{background:var(--sticky-blue);border:1px solid var(--sticky-blue-line);transform:rotate(0.5deg);}
+  .sticky b{font-weight:700;}
+
+  /* Week groups (personal ledger) */
+  .week-group{margin-bottom:16px;border-radius:12px;overflow:hidden;border:1px solid var(--line);}
+  .week-head{display:flex;align-items:center;justify-content:space-between;padding:11px 16px;color:#fff;}
+  .week-head.navy{background:var(--bar-navy);}
+  .week-head.over{background:linear-gradient(180deg,var(--bar-red),var(--bar-red-deep));}
+  .week-head .range{font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:12px;font-weight:600;opacity:0.85;}
+  .week-head .total-block{text-align:right;}
+  .week-head .total-worked{font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:11px;font-weight:600;opacity:0.8;margin-bottom:2px;}
+  .week-head .total{font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:15px;font-weight:800;}
+  .gauge-wide{height:5px;background:rgba(255,255,255,0.25);border-radius:4px;overflow:hidden;margin-top:6px;width:160px;}
+  .gauge-wide-fill{height:100%;background:#fff;}
+  .badge-over{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:0.5px;
+    color:var(--bar-red-deep);background:#fff;border-radius:999px;padding:3px 10px;margin-left:8px;}
+
+  .day-row{display:flex;align-items:center;justify-content:space-between;background:#fff;padding:11px 16px;
+    border-top:1px dashed var(--line);font-size:13px;}
+  .week-group .day-row:first-of-type{border-top:none;}
+  .day-row .date{font-family:'Pretendard Variable','Pretendard',sans-serif;font-weight:700;min-width:78px;}
+  .day-row .times{color:var(--muted);font-size:12px;font-family:'Pretendard Variable','Pretendard',sans-serif;}
+  .day-row .ot{font-family:'Pretendard Variable','Pretendard',sans-serif;font-weight:800;min-width:60px;text-align:right;}
+  .day-row .ot.zero{color:var(--muted);font-weight:500;}
+  .day-row .ot.has{color:var(--bar-blue-deep);}
+  .day-row .right{display:flex;align-items:center;gap:10px;}
+
+  .empty{text-align:center;color:var(--muted);font-size:13px;padding:26px 0;}
+  .footnote{max-width:800px;margin:0 auto 40px;padding:0 18px;}
+  .selected-tag{font-family:'Pretendard Variable','Pretendard',sans-serif;font-size:12px;font-weight:600;opacity:0.85;margin-left:8px;}
+</style>
+</head>
+<body>
+
+  <div class="topbar">
+    <div>TEAM · 2026.07</div>
+    <div class="icons">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l4-4m-4 4l-4-4"/><path d="M4 17v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+      <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="6" r="2"/><circle cx="12" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="6" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="18" cy="12" r="2"/></svg>
+    </div>
+  </div>
+
+  <div class="hero">
+    <h1>Marketing Team<br>Work Time!</h1>
+    <div class="tag">주 연장근로 한도 12:00 시간</div>
+  </div>
+
+<div class="wrap">
+
+  <div class="win" id="storageSetupWin" style="display:none;">
+    <div class="win-bar mustard"><div class="dots"><span></span><span></span><span></span></div><div class="title">팀 공유 저장소 연결</div></div>
+    <div class="win-body">
+      <div class="sticky yellow" style="margin-top:0;">
+        아직 이 브라우저는 팀 저장소에 연결돼 있지 않아요.<br>
+        관리자에게 받은 <b>저장소 코드</b>를 입력하거나, 맨 처음 만드는 거라면 아래에서 새로 만들 수 있어요.
+      </div>
+      <div class="entry-form" style="margin-top:14px;">
+        <div class="field" style="flex:2;"><label>저장소 코드</label><input type="text" id="bucketInput" placeholder="예: Fd55uogXyxYdnXJvnyN8Xo"></div>
+        <button class="btn" id="connectBucketBtn">연결하기</button>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:var(--muted);">
+        코드가 없으신가요? <a href="#" id="createBucketLink" style="color:var(--bar-blue-deep);font-weight:700;">새 저장소 만들기 (최초 1회, 관리자용)</a>
+      </div>
+      <div id="createBucketResult"></div>
+    </div>
+  </div>
+
+  <div class="win">
+    <div class="win-bar blue"><div class="dots"><span></span><span></span><span></span></div><div class="title">이번 주 팀 현황</div>
+      <button id="refreshBtn" title="최신 기록 다시 불러오기" style="margin-left:auto;background:rgba(255,255,255,0.2);border:none;color:#fff;border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;">↻ 새로고침</button>
+      <span class="selected-tag" id="bucketTag" style="cursor:pointer;margin-left:8px;" title="클릭하면 저장소를 바꿀 수 있어요"></span>
+    </div>
+    <div class="win-body"><div class="team-grid" id="teamGrid"></div></div>
+  </div>
+
+  <div class="win">
+    <div class="win-bar red"><div class="dots"><span></span><span></span><span></span></div><div class="title">규정 설정 (팀 공통)</div></div>
+    <div class="win-body">
+      <div class="settings-grid" id="settingsGrid"></div>
+    </div>
+  </div>
+
+  <div class="win">
+    <div class="win-bar mustard"><div class="dots"><span></span><span></span><span></span></div><div class="title">출퇴근 입력</div><span class="selected-tag" id="selectedTag"></span></div>
+    <div class="win-body">
+      <div class="entry-form">
+        <div class="field"><label>이름</label><select id="memberSelect"></select></div>
+        <div class="field"><label>날짜</label><input type="date" id="inDate"></div>
+        <div class="field"><label>출근</label><input type="time" id="inStart"></div>
+        <div class="field"><label>퇴근</label><input type="time" id="inEnd"></div>
+        <button class="btn" id="addBtn">기록 추가</button>
+      </div>
+      <div class="sticky blue" id="scheduleNote"></div>
+    </div>
+  </div>
+
+  <div class="win">
+    <div class="win-bar navy"><div class="dots"><span></span><span></span><span></span></div><div class="title">개인 기록</div></div>
+    <div class="win-body"><div id="listArea"><div class="empty">불러오는 중...</div></div></div>
+  </div>
+
+  <div class="sticky yellow">
+    이 장부는 <b>팀 전체가 공유</b>해요! 다른 조원들도 여기에 각자 기록을 남기면 돼요 :)<br>
+    근로기준법 기준 주 12시간 연장한도 참고용 계산기입니다.
+  </div>
+
+</div>
+
+<script>
+const SCHEDULE = {
+  "마샤": {group:"3조", start:"09:00", end:"18:00"},
+  "티미": {group:"4조", start:"09:30", end:"18:30"},
+  "샤론": {group:"2조", start:"08:30", end:"17:30"},
+  "리아": {group:"5조", start:"10:00", end:"19:00"},
+  "나나": {group:"3조", start:"09:00", end:"18:00"},
+  "우미": {group:"3조", start:"09:00", end:"18:00"},
+  "안나": {group:"2조", start:"08:30", end:"17:30"},
+  "클로이": {group:"2조", start:"08:30", end:"17:30"}
+};
+const ROSTER = Object.keys(SCHEDULE);
+
+const DEFAULT_SETTINGS = {
+  standardHours: 8,
+  lunchEnabled: true, lunchStart: "12:30", lunchEnd: "13:30", lunchDuration: 1,
+  dinnerEnabled: true, dinnerThresholdHours: 8, dinnerDuration: 0.5
+};
+
+let settings = {...DEFAULT_SETTINGS};
+let allEntries = {};
+let selectedMember = ROSTER[0];
+
+const $ = id => document.getElementById(id);
+const toMin = hhmm => { const [h,m]=hhmm.split(':').map(Number); return h*60+m; };
+
+const KVDB_KEY = 'kvdb-bucket-id';
+let BUCKET_ID = localStorage.getItem(KVDB_KEY) || '';
+
+function showStorageSetup(show){
+  $('storageSetupWin').style.display = show ? '' : 'none';
+  $('bucketTag').textContent = BUCKET_ID ? `저장소: ${BUCKET_ID.slice(0,6)}…` : '저장소 미연결';
+}
+
+async function kvGet(key){
+  if(!BUCKET_ID) return null;
+  try{
+    const res = await fetch(`https://kvdb.io/${BUCKET_ID}/${key}`);
+    if(!res.ok) return null;
+    return await res.text();
+  }catch(err){ console.error('불러오기 실패', err); return null; }
+}
+async function kvSet(key, value){
+  if(!BUCKET_ID) return;
+  try{
+    await fetch(`https://kvdb.io/${BUCKET_ID}/${key}`, {method:'PUT', body:value});
+  }catch(err){ console.error('저장 실패', err); }
+}
+
+$('connectBucketBtn').addEventListener('click', async ()=>{
+  const val = $('bucketInput').value.trim();
+  if(!val){ alert('저장소 코드를 입력해주세요.'); return; }
+  BUCKET_ID = val;
+  localStorage.setItem(KVDB_KEY, BUCKET_ID);
+  showStorageSetup(false);
+  await loadAll();
+});
+
+$('bucketTag').addEventListener('click', ()=>{
+  showStorageSetup(true);
+});
+
+$('createBucketLink').addEventListener('click', async (e)=>{
+  e.preventDefault();
+  const email = prompt('저장소 생성에 쓸 이메일을 입력해주세요 (인증메일은 안 가요, 형식만 맞으면 됩니다):', 'team@example.com');
+  if(!email) return;
+  try{
+    const res = await fetch('https://kvdb.io', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`email=${encodeURIComponent(email)}`});
+    const id = (await res.text()).trim();
+    $('createBucketResult').innerHTML = `<div class="sticky blue">새 저장소 코드: <b>${id}</b><br>이 코드를 팀원들에게 공유해주세요 (Slack, 메신저 등)! 다들 처음 열 때 이 코드를 입력하면 같은 장부를 보게 돼요.<br><button class="btn" id="useNewBucketBtn" style="margin-top:8px;">이 저장소로 바로 연결하기</button></div>`;
+    $('useNewBucketBtn').addEventListener('click', async ()=>{
+      BUCKET_ID = id;
+      localStorage.setItem(KVDB_KEY, BUCKET_ID);
+      showStorageSetup(false);
+      await loadAll();
+    });
+  }catch(err){
+    alert('저장소 생성에 실패했어요. 네트워크 상태를 확인하고 다시 시도해주세요.');
+  }
+});
+
+function calcEntry(e, s){
+  let startMin = toMin(e.inStart);
+  let endMin = toMin(e.inEnd);
+  if(endMin <= startMin) endMin += 24*60;
+  let worked = endMin - startMin;
+
+  let afterLunch = worked;
+  if(s.lunchEnabled){
+    const ls=toMin(s.lunchStart), le=toMin(s.lunchEnd);
+    if(startMin < le && endMin > ls) afterLunch -= s.lunchDuration*60;
+  }
+  afterLunch = Math.max(0, afterLunch);
+
+  let afterDinner = afterLunch;
+  if(s.dinnerEnabled && afterLunch > s.dinnerThresholdHours*60){
+    afterDinner -= s.dinnerDuration*60;
+  }
+  const net = Math.max(0, afterDinner);
+  const standard = s.standardHours*60;
+  const overtime = Math.max(0, net - standard);
+  return {worked, brk: worked-net, net, overtime};
+}
+
+function fmtHM(min){
+  const h=Math.floor(min/60), m=Math.round(min%60);
+  return m===0 ? `${h}시간` : `${h}시간 ${m}분`;
+}
+
+function isoWeekInfo(dateStr){
+  const d = new Date(dateStr+"T00:00:00");
+  const day = (d.getDay()+6)%7;
+  const monday = new Date(d); monday.setDate(d.getDate()-day);
+  const sunday = new Date(monday); sunday.setDate(monday.getDate()+6);
+  const key = monday.toISOString().slice(0,10);
+  const label = `${monday.getMonth()+1}/${monday.getDate()} ~ ${sunday.getMonth()+1}/${sunday.getDate()}`;
+  return {key, label};
+}
+function currentWeekKey(){ return isoWeekInfo(new Date().toISOString().slice(0,10)).key; }
+
+function weeklyTotalsFor(name){
+  const list = allEntries[name] || [];
+  const weeks = {};
+  list.forEach(e=>{
+    const {key,label} = isoWeekInfo(e.date);
+    if(!weeks[key]) weeks[key] = {label, items:[], totalOT:0, totalNet:0};
+    const c = calcEntry(e, settings);
+    weeks[key].items.push({...e, ...c});
+    weeks[key].totalOT += c.overtime;
+    weeks[key].totalNet += c.net;
+  });
+  return weeks;
+}
+
+function applySchedule(name){
+  const sc = SCHEDULE[name];
+  if(!sc) return;
+  $('inStart').value = sc.start;
+  $('inEnd').value = sc.end;
+  $('scheduleNote').innerHTML = `${name}님 7월 기본 출퇴근은 <b>${sc.group} · ${sc.start}~${sc.end}</b> 예요. 자동으로 채워놨으니 다른 날은 그냥 고쳐서 입력하면 돼요~`;
+}
+
+function renderMemberSelect(){
+  $('memberSelect').innerHTML = ROSTER.map(n=>`<option value="${n}" ${n===selectedMember?'selected':''}>${n} (${SCHEDULE[n].group})</option>`).join('');
+}
+
+function renderTeamGrid(){
+  const wk = currentWeekKey();
+  $('teamGrid').innerHTML = ROSTER.map(name=>{
+    const weeks = weeklyTotalsFor(name);
+    const total = weeks[wk] ? weeks[wk].totalOT : 0;
+    const totalWorked = weeks[wk] ? weeks[wk].totalNet : 0;
+    const pct = Math.min(100, (total/720)*100);
+    const over = total > 720;
+    const sc = SCHEDULE[name];
+    return `<div class="member-tile ${name===selectedMember?'active':''}" data-name="${name}">
+      <div class="name">${name}</div>
+      <div class="group">${sc.group} · ${sc.start}~${sc.end}</div>
+      <div class="hrs-worked">근무 ${fmtHM(totalWorked)}</div>
+      <div class="hrs ${over?'over':''}">야근 ${fmtHM(total)}${over?' 초과':''}</div>
+      <div class="gauge"><div class="gauge-fill ${over?'over':''}" style="width:${pct}%"></div></div>
+    </div>`;
+  }).join('');
+  document.querySelectorAll('.member-tile').forEach(t=>{
+    t.addEventListener('click', ()=>{
+      selectedMember = t.dataset.name;
+      persistSelected();
+      renderMemberSelect(); renderTeamGrid(); renderLedger(); applySchedule(selectedMember);
+      $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
+    });
+  });
+}
+
+function renderSettings(){
+  $('settingsGrid').innerHTML = `
+    <div class="field"><label>기본 근무시간(시간)</label><input type="number" id="stdHours" min="0" max="24" step="0.5" value="${settings.standardHours}"></div>
+    <div class="field"></div>
+    <div class="toggle-row"><input type="checkbox" id="lunchOn" ${settings.lunchEnabled?'checked':''}><span>점심시간 자동 차감</span></div>
+    <div class="field"><label>점심 시작</label><input type="time" id="lunchStart" value="${settings.lunchStart}" ${!settings.lunchEnabled?'disabled':''}></div>
+    <div class="field"><label>점심 종료</label><input type="time" id="lunchEnd" value="${settings.lunchEnd}" ${!settings.lunchEnabled?'disabled':''}></div>
+    <div class="field"><label>차감 시간(시간)</label><input type="number" id="lunchDur" min="0" max="4" step="0.5" value="${settings.lunchDuration}" ${!settings.lunchEnabled?'disabled':''}></div>
+    <div class="toggle-row"><input type="checkbox" id="dinnerOn" ${settings.dinnerEnabled?'checked':''}><span>저녁시간 자동 차감</span></div>
+    <div class="field"><label>기준 근무시간(시간 초과 시)</label><input type="number" id="dinnerThreshold" min="0" max="24" step="0.5" value="${settings.dinnerThresholdHours}" ${!settings.dinnerEnabled?'disabled':''}><span class="hint">예: 8 → 8시간 넘게 일하면 적용</span></div>
+    <div class="field"><label>차감 시간(시간)</label><input type="number" id="dinnerDur" min="0" max="4" step="0.5" value="${settings.dinnerDuration}" ${!settings.dinnerEnabled?'disabled':''}><span class="hint">예: 0.5 = 30분</span></div>
+  `;
+  const bind=(id,key,parse)=>$(id).addEventListener('change', e=>{
+    settings[key] = parse ? parse(e.target.value) : e.target.value;
+    saveSettings(); renderTeamGrid(); renderLedger();
+  });
+  bind('stdHours','standardHours',Number);
+  bind('lunchStart','lunchStart');
+  bind('lunchEnd','lunchEnd');
+  bind('lunchDur','lunchDuration',Number);
+  bind('dinnerThreshold','dinnerThresholdHours',Number);
+  bind('dinnerDur','dinnerDuration',Number);
+  $('lunchOn').addEventListener('change', e=>{settings.lunchEnabled=e.target.checked; saveSettings(); renderSettings(); renderTeamGrid(); renderLedger();});
+  $('dinnerOn').addEventListener('change', e=>{settings.dinnerEnabled=e.target.checked; saveSettings(); renderSettings(); renderTeamGrid(); renderLedger();});
+}
+
+function renderLedger(){
+  const weeks = weeklyTotalsFor(selectedMember);
+  const weekKeys = Object.keys(weeks).sort().reverse();
+  if(weekKeys.length===0){
+    $('listArea').innerHTML = `<div class="empty">${selectedMember}님의 기록이 아직 없어요.</div>`;
+    return;
+  }
+  let html = '';
+  weekKeys.forEach(wk=>{
+    const w = weeks[wk];
+    const pct = Math.min(100,(w.totalOT/720)*100);
+    const over = w.totalOT > 720;
+    html += `<div class="week-group">
+      <div class="week-head ${over?'over':'navy'}">
+        <div><div class="range">${w.label}</div>
+          <div class="gauge-wide"><div class="gauge-wide-fill" style="width:${pct}%"></div></div>
+        </div>
+        <div class="total-block">
+          <div class="total-worked">총 근무 ${fmtHM(w.totalNet)}</div>
+          <div class="total">${fmtHM(w.totalOT)} ${over?'<span class="badge-over">초과</span>':''}</div>
+        </div>
+      </div>`;
+    w.items.sort((a,b)=>b.date.localeCompare(a.date)).forEach(it=>{
+      const d = new Date(it.date+"T00:00:00");
+      const wd = ['일','월','화','수','목','금','토'][d.getDay()];
+      html += `<div class="day-row">
+        <div class="date">${d.getMonth()+1}/${d.getDate()}(${wd})</div>
+        <div class="times">${it.inStart} → ${it.inEnd} · 차감 ${(it.brk/60).toFixed(1)}h · 근무 ${(it.net/60).toFixed(1)}h</div>
+        <div class="right">
+          <div class="ot ${it.overtime>0?'has':'zero'}">${it.overtime>0? '+'+fmtHM(it.overtime) : '-'}</div>
+          <button class="btn del" data-id="${it.id}">삭제</button>
+        </div>
+      </div>`;
+    });
+    html += `</div>`;
+  });
+  $('listArea').innerHTML = html;
+  document.querySelectorAll('.btn.del').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      allEntries[selectedMember] = (allEntries[selectedMember]||[]).filter(e=>e.id!==b.dataset.id);
+      saveEntries(); renderTeamGrid(); renderLedger();
+    });
+  });
+}
+
+async function saveSettings(){
+  await kvSet('team-settings', JSON.stringify(settings));
+}
+async function saveEntries(){
+  await kvSet('team-entries', JSON.stringify(allEntries));
+}
+function persistSelected(){
+  try{ localStorage.setItem('my-last-selected', selectedMember); }
+  catch(err){ /* 무시 */ }
+}
+
+async function loadAll(){
+  if(!BUCKET_ID){
+    showStorageSetup(true);
+    ROSTER.forEach(n=>{ if(!allEntries[n]) allEntries[n]=[]; });
+    renderMemberSelect(); renderSettings(); renderTeamGrid(); renderLedger(); applySchedule(selectedMember);
+    $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
+    return;
+  }
+  showStorageSetup(false);
+  const s = await kvGet('team-settings');
+  if(s){ try{ settings = {...DEFAULT_SETTINGS, ...JSON.parse(s)}; }catch(err){} }
+  const e = await kvGet('team-entries');
+  if(e){ try{ allEntries = JSON.parse(e); }catch(err){ allEntries = {}; } }
+
+  try{
+    const me = localStorage.getItem('my-last-selected');
+    if(me && ROSTER.includes(me)) selectedMember = me;
+  }catch(err){ /* 무시 */ }
+
+  ROSTER.forEach(n=>{ if(!allEntries[n]) allEntries[n]=[]; });
+
+  renderMemberSelect();
+  renderSettings();
+  renderTeamGrid();
+  renderLedger();
+  applySchedule(selectedMember);
+  $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
+}
+
+$('inDate').value = new Date().toISOString().slice(0,10);
+$('memberSelect').addEventListener('change', e=>{
+  selectedMember = e.target.value;
+  persistSelected();
+  renderTeamGrid(); renderLedger(); applySchedule(selectedMember);
+  $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
+});
+$('addBtn').addEventListener('click', ()=>{
+  const name = $('memberSelect').value;
+  const date = $('inDate').value, inStart = $('inStart').value, inEnd = $('inEnd').value;
+  if(!date || !inStart || !inEnd){ alert('날짜와 출퇴근 시간을 모두 입력해주세요.'); return; }
+  if(!allEntries[name]) allEntries[name] = [];
+  allEntries[name].push({id: Date.now().toString()+Math.random().toString(36).slice(2,6), date, inStart, inEnd});
+  saveEntries(); renderTeamGrid(); if(name===selectedMember) renderLedger();
+});
+$('refreshBtn').addEventListener('click', async ()=>{
+  $('refreshBtn').textContent = '불러오는 중…';
+  await loadAll();
+  $('refreshBtn').textContent = '↻ 새로고침';
+});
+
+loadAll();
+</script>
+</body>
+</html>
