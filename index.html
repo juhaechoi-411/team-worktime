@@ -265,10 +265,12 @@ async function kvGet(key){
   }catch(err){ console.error('불러오기 실패', err); return null; }
 }
 async function kvSet(key, value){
-  if(!BUCKET_ID) return;
+  if(!BUCKET_ID) return false;
   try{
-    await fetch(`https://kvdb.io/${BUCKET_ID}/${key}`, {method:'PUT', body:value});
-  }catch(err){ console.error('저장 실패', err); }
+    const res = await fetch(`https://kvdb.io/${BUCKET_ID}/${key}`, {method:'POST', body:value});
+    if(!res.ok){ console.error('저장 실패 status:', res.status); return false; }
+    return true;
+  }catch(err){ console.error('저장 실패', err); return false; }
 }
 
 $('connectBucketBtn').addEventListener('click', async ()=>{
@@ -467,10 +469,10 @@ function renderLedger(){
 }
 
 async function saveSettings(){
-  await kvSet('team-settings', JSON.stringify(settings));
+  return await kvSet('team-settings', JSON.stringify(settings));
 }
 async function saveEntries(){
-  await kvSet('team-entries', JSON.stringify(allEntries));
+  return await kvSet('team-entries', JSON.stringify(allEntries));
 }
 function persistSelected(){
   try{ localStorage.setItem('my-last-selected', selectedMember); }
@@ -513,13 +515,15 @@ $('memberSelect').addEventListener('change', e=>{
   renderTeamGrid(); renderLedger(); applySchedule(selectedMember);
   $('selectedTag').textContent = `현재 선택: ${selectedMember}`;
 });
-$('addBtn').addEventListener('click', ()=>{
+$('addBtn').addEventListener('click', async ()=>{
   const name = $('memberSelect').value;
   const date = $('inDate').value, inStart = $('inStart').value, inEnd = $('inEnd').value;
   if(!date || !inStart || !inEnd){ alert('날짜와 출퇴근 시간을 모두 입력해주세요.'); return; }
   if(!allEntries[name]) allEntries[name] = [];
   allEntries[name].push({id: Date.now().toString()+Math.random().toString(36).slice(2,6), date, inStart, inEnd});
-  saveEntries(); renderTeamGrid(); if(name===selectedMember) renderLedger();
+  const ok = await saveEntries();
+  if(!ok) alert('저장에 실패했어요. 인터넷 연결을 확인하거나 저장소 코드가 맞는지 다시 확인해주세요.');
+  renderTeamGrid(); if(name===selectedMember) renderLedger();
 });
 $('refreshBtn').addEventListener('click', async ()=>{
   $('refreshBtn').textContent = '불러오는 중…';
