@@ -168,14 +168,15 @@
     <div class="win-body">
       <div class="sticky yellow" style="margin-top:0;">
         아직 이 브라우저는 팀 저장소에 연결돼 있지 않아요.<br>
-        관리자에게 받은 <b>저장소 코드</b>를 입력하거나, 맨 처음 만드는 거라면 아래에서 새로 만들 수 있어요.
+        관리자에게 받은 <b>연결 코드</b>를 입력하거나, 맨 처음 만드는 거라면 아래에서 새로 만들 수 있어요.
       </div>
       <div class="entry-form" style="margin-top:14px;">
-        <div class="field" style="flex:2;"><label>저장소 코드</label><input type="text" id="bucketInput" placeholder="예: Fd55uogXyxYdnXJvnyN8Xo"></div>
+        <div class="field" style="flex:2;"><label>연결 코드</label><input type="text" id="bucketInput" placeholder="owner|repo|path|token 형태의 코드를 붙여넣으세요"></div>
         <button class="btn" id="connectBucketBtn">연결하기</button>
       </div>
       <div style="margin-top:10px;font-size:12px;color:var(--muted);">
-        코드가 없으신가요? <a href="#" id="createBucketLink" style="color:var(--bar-blue-deep);font-weight:700;">새 저장소 만들기 (최초 1회, 관리자용)</a>
+        코드가 없으신가요? <a href="#" id="createBucketLink" style="color:var(--bar-blue-deep);font-weight:700;">새 저장소 연결 만들기 (최초 1회, 관리자용)</a>
+        <br>※ 관리자는 먼저 저장소에 <code>data/team-data.json</code> 파일을(내용은 <code>{}</code>) 만들고, Fine-grained 개인 토큰(해당 저장소의 Contents: Read and write 권한)을 발급해두세요.
       </div>
       <div id="createBucketResult"></div>
     </div>
@@ -248,36 +249,75 @@ let selectedMember = ROSTER[0];
 const $ = id => document.getElementById(id);
 const toMin = hhmm => { const [h,m]=hhmm.split(':').map(Number); return h*60+m; };
 
-const KVDB_KEY = 'kvdb-bucket-id';
-let BUCKET_ID = localStorage.getItem(KVDB_KEY) || '';
+const CONN_KEY = 'gh-conn';
+let CONN = localStorage.getItem(CONN_KEY) || ''; // "owner|repo|path|token"
+
+function parseConn(){
+  const parts = CONN.split('|');
+  if(parts.length !== 4) return null;
+  const [owner, repo, path, token] = parts;
+  if(!owner || !repo || !path || !token) return null;
+  return { owner, repo, path, token };
+}
+
+function b64DecodeUnicode(str){
+  return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+}
+function b64EncodeUnicode(str){
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (m, p1) => String.fromCharCode('0x' + p1)));
+}
 
 function showStorageSetup(show){
   $('storageSetupWin').style.display = show ? '' : 'none';
-  $('bucketTag').textContent = BUCKET_ID ? `저장소: ${BUCKET_ID.slice(0,6)}…` : '저장소 미연결';
+  const c = parseConn();
+  $('bucketTag').textContent = c ? `저장소: ${c.owner}/${c.repo}` : '저장소 미연결';
 }
 
-async function kvGet(key){
-  if(!BUCKET_ID) return null;
+async function ghGet(){
+  const c = parseConn();
+  if(!c) return null;
   try{
-    const res = await fetch(`https://kvdb.io/${BUCKET_ID}/${key}`);
-    if(!res.ok) return null;
-    return await res.text();
+    const res = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${c.path}`, {
+      headers:{'Authorization': `token ${c.token}`, 'Accept':'application/vnd.github+json'}
+    });
+    if(!res.ok){ console.error('불러오기 실패 status:', res.status); return null; }
+    const data = await res.json();
+    const content = (data.content || '').replace(/\n/g,'');
+    if(!content.trim()) return null;
+    return JSON.parse(b64DecodeUnicode(content));
   }catch(err){ console.error('불러오기 실패', err); return null; }
 }
-async function kvSet(key, value){
-  if(!BUCKET_ID) return false;
+
+async function ghSet(record){
+  const c = parseConn();
+  if(!c) return false;
   try{
-    const res = await fetch(`https://kvdb.io/${BUCKET_ID}/${key}`, {method:'POST', body:value});
-    if(!res.ok){ console.error('저장 실패 status:', res.status); return false; }
+    const getRes = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${c.path}`, {
+      headers:{'Authorization': `token ${c.token}`, 'Accept':'application/vnd.github+json'}
+    });
+    let sha;
+    if(getRes.ok){ const d = await getRes.json(); sha = d.sha; }
+    const body = {
+      message: '팀 야근 기록 업데이트',
+      content: b64EncodeUnicode(JSON.stringify(record, null, 2))
+    };
+    if(sha) body.sha = sha;
+    const putRes = await fetch(`https://api.github.com/repos/${c.owner}/${c.repo}/contents/${c.path}`, {
+      method:'PUT',
+      headers:{'Authorization': `token ${c.token}`, 'Accept':'application/vnd.github+json', 'Content-Type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    if(!putRes.ok){ console.error('저장 실패 status:', putRes.status); return false; }
     return true;
   }catch(err){ console.error('저장 실패', err); return false; }
 }
 
 $('connectBucketBtn').addEventListener('click', async ()=>{
   const val = $('bucketInput').value.trim();
-  if(!val){ alert('저장소 코드를 입력해주세요.'); return; }
-  BUCKET_ID = val;
-  localStorage.setItem(KVDB_KEY, BUCKET_ID);
+  const parts = val.split('|');
+  if(parts.length !== 4){ alert('연결 코드 형식이 올바르지 않아요 (owner|repo|path|token 형태여야 해요).'); return; }
+  CONN = val;
+  localStorage.setItem(CONN_KEY, CONN);
   showStorageSetup(false);
   await loadAll();
 });
@@ -288,20 +328,30 @@ $('bucketTag').addEventListener('click', ()=>{
 
 $('createBucketLink').addEventListener('click', async (e)=>{
   e.preventDefault();
-  const email = prompt('저장소 생성에 쓸 이메일을 입력해주세요 (인증메일은 안 가요, 형식만 맞으면 됩니다):', 'team@example.com');
-  if(!email) return;
+  const owner = prompt('GitHub 계정(아이디)을 입력해주세요:');
+  if(!owner) return;
+  const repo = prompt('저장소(repository) 이름을 입력해주세요:');
+  if(!repo) return;
+  const path = prompt('데이터 파일 경로를 입력해주세요 (미리 만들어둔 파일과 동일해야 해요):', 'data/team-data.json');
+  if(!path) return;
+  const token = prompt('Fine-grained 개인 토큰(github_pat_...)을 입력해주세요:');
+  if(!token) return;
   try{
-    const res = await fetch('https://kvdb.io', {method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:`email=${encodeURIComponent(email)}`});
-    const id = (await res.text()).trim();
-    $('createBucketResult').innerHTML = `<div class="sticky blue">새 저장소 코드: <b>${id}</b><br>이 코드를 팀원들에게 공유해주세요 (Slack, 메신저 등)! 다들 처음 열 때 이 코드를 입력하면 같은 장부를 보게 돼요.<br><button class="btn" id="useNewBucketBtn" style="margin-top:8px;">이 저장소로 바로 연결하기</button></div>`;
+    const res = await fetch(`https://api.github.com/repos/${owner.trim()}/${repo.trim()}/contents/${path.trim()}`, {
+      headers:{'Authorization': `token ${token.trim()}`, 'Accept':'application/vnd.github+json'}
+    });
+    if(!res.ok) throw new Error('status ' + res.status);
+    const conn = [owner.trim(), repo.trim(), path.trim(), token.trim()].join('|');
+    $('createBucketResult').innerHTML = `<div class="sticky blue">연결 코드가 만들어졌어요:<br><b style="word-break:break-all;">${conn}</b><br>이 코드를 팀원들에게 공유해주세요 (Slack, 메신저 등)! 다들 처음 열 때 이 코드를 입력하면 같은 장부를 보게 돼요.<br><button class="btn" id="useNewBucketBtn" style="margin-top:8px;">이 저장소로 바로 연결하기</button></div>`;
     $('useNewBucketBtn').addEventListener('click', async ()=>{
-      BUCKET_ID = id;
-      localStorage.setItem(KVDB_KEY, BUCKET_ID);
+      CONN = conn;
+      localStorage.setItem(CONN_KEY, CONN);
       showStorageSetup(false);
       await loadAll();
     });
   }catch(err){
-    alert('저장소 생성에 실패했어요. 네트워크 상태를 확인하고 다시 시도해주세요.');
+    alert('연결에 실패했어요. data/team-data.json 파일을 미리 만들어뒀는지, 토큰 권한(Contents: Read and write)이 맞는지 확인해주세요.');
+    console.error(err);
   }
 });
 
@@ -474,10 +524,10 @@ function renderLedger(){
 }
 
 async function saveSettings(){
-  return await kvSet('team-settings', JSON.stringify(settings));
+  return await ghSet({settings, entries: allEntries});
 }
 async function saveEntries(){
-  return await kvSet('team-entries', JSON.stringify(allEntries));
+  return await ghSet({settings, entries: allEntries});
 }
 function persistSelected(){
   try{ localStorage.setItem('my-last-selected', selectedMember); }
@@ -485,7 +535,8 @@ function persistSelected(){
 }
 
 async function loadAll(){
-  if(!BUCKET_ID){
+  const conn = parseConn();
+  if(!conn){
     showStorageSetup(true);
     ROSTER.forEach(n=>{ if(!allEntries[n]) allEntries[n]=[]; });
     renderMemberSelect(); renderSettings(); renderTeamGrid(); renderLedger(); applySchedule(selectedMember);
@@ -493,10 +544,11 @@ async function loadAll(){
     return;
   }
   showStorageSetup(false);
-  const s = await kvGet('team-settings');
-  if(s){ try{ settings = {...DEFAULT_SETTINGS, ...JSON.parse(s)}; }catch(err){} }
-  const e = await kvGet('team-entries');
-  if(e){ try{ allEntries = JSON.parse(e); }catch(err){ allEntries = {}; } }
+  const record = await ghGet();
+  if(record){
+    if(record.settings) settings = {...DEFAULT_SETTINGS, ...record.settings};
+    if(record.entries) allEntries = record.entries;
+  }
 
   try{
     const me = localStorage.getItem('my-last-selected');
