@@ -238,7 +238,7 @@ const ROSTER = Object.keys(SCHEDULE);
 const DEFAULT_SETTINGS = {
   standardHours: 8,
   lunchEnabled: true, lunchStart: "12:30", lunchEnd: "13:30", lunchDuration: 1,
-  dinnerEnabled: true, dinnerThresholdHours: 8, dinnerDuration: 0.5
+  dinnerEnabled: true, dinnerThresholdHours: 10, dinnerDuration: 0.5
 };
 
 let settings = {...DEFAULT_SETTINGS};
@@ -305,11 +305,16 @@ $('createBucketLink').addEventListener('click', async (e)=>{
   }
 });
 
-function calcEntry(e, s){
+function calcEntry(e, s, name){
   let startMin = toMin(e.inStart);
+  const sc = SCHEDULE[name];
+  if(sc){
+    const schedStart = toMin(sc.start);
+    if(startMin < schedStart) startMin = schedStart; // 정규 출근시간보다 일찍 찍어도 업무 시작은 정규 출근시간부터
+  }
   let endMin = toMin(e.inEnd);
   if(endMin <= startMin) endMin += 24*60;
-  let worked = endMin - startMin;
+  let worked = endMin - startMin; // (보정된) 출근시간 기준 경과시간
 
   let afterLunch = worked;
   if(s.lunchEnabled){
@@ -319,7 +324,7 @@ function calcEntry(e, s){
   afterLunch = Math.max(0, afterLunch);
 
   let afterDinner = afterLunch;
-  if(s.dinnerEnabled && afterLunch > s.dinnerThresholdHours*60){
+  if(s.dinnerEnabled && worked > s.dinnerThresholdHours*60){
     afterDinner -= s.dinnerDuration*60;
   }
   const net = Math.max(0, afterDinner);
@@ -350,7 +355,7 @@ function weeklyTotalsFor(name){
   list.forEach(e=>{
     const {key,label} = isoWeekInfo(e.date);
     if(!weeks[key]) weeks[key] = {label, items:[], totalOT:0, totalNet:0};
-    const c = calcEntry(e, settings);
+    const c = calcEntry(e, settings, name);
     weeks[key].items.push({...e, ...c});
     weeks[key].totalOT += c.overtime;
     weeks[key].totalNet += c.net;
@@ -363,7 +368,7 @@ function applySchedule(name){
   if(!sc) return;
   $('inStart').value = sc.start;
   $('inEnd').value = sc.end;
-  $('scheduleNote').innerHTML = `${name}님 7월 기본 출퇴근은 <b>${sc.group} · ${sc.start}~${sc.end}</b> 예요. 자동으로 채워놨으니 다른 날은 그냥 고쳐서 입력하면 돼요~`;
+  $('scheduleNote').innerHTML = `${name}님 7월 기본 출퇴근은 <b>${sc.group} · ${sc.start}~${sc.end}</b> 예요. 자동으로 채워놨으니 다른 날은 그냥 고쳐서 입력하면 돼요~ (출근시간을 ${sc.start}보다 일찍 입력해도 업무 시작은 ${sc.start}부터로 계산돼요)`;
 }
 
 function renderMemberSelect(){
@@ -406,7 +411,7 @@ function renderSettings(){
     <div class="field"><label>점심 종료</label><input type="time" id="lunchEnd" value="${settings.lunchEnd}" ${!settings.lunchEnabled?'disabled':''}></div>
     <div class="field"><label>차감 시간(시간)</label><input type="number" id="lunchDur" min="0" max="4" step="0.5" value="${settings.lunchDuration}" ${!settings.lunchEnabled?'disabled':''}></div>
     <div class="toggle-row"><input type="checkbox" id="dinnerOn" ${settings.dinnerEnabled?'checked':''}><span>저녁시간 자동 차감</span></div>
-    <div class="field"><label>기준 근무시간(시간 초과 시)</label><input type="number" id="dinnerThreshold" min="0" max="24" step="0.5" value="${settings.dinnerThresholdHours}" ${!settings.dinnerEnabled?'disabled':''}><span class="hint">예: 8 → 8시간 넘게 일하면 적용</span></div>
+    <div class="field"><label>기준 시간(출근시간 기준, 시간)</label><input type="number" id="dinnerThreshold" min="0" max="24" step="0.5" value="${settings.dinnerThresholdHours}" ${!settings.dinnerEnabled?'disabled':''}><span class="hint">예: 10 → (보정된) 출근 후 10시간 지나면 적용</span></div>
     <div class="field"><label>차감 시간(시간)</label><input type="number" id="dinnerDur" min="0" max="4" step="0.5" value="${settings.dinnerDuration}" ${!settings.dinnerEnabled?'disabled':''}><span class="hint">예: 0.5 = 30분</span></div>
   `;
   const bind=(id,key,parse)=>$(id).addEventListener('change', e=>{
