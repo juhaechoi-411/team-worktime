@@ -7,12 +7,20 @@
     "lunchDuration": 1,
     "dinnerEnabled": true,
     "dinnerThresholdHours": 10,
-    "dinnerDuration": 0.5
+    "dinnerDuration": 0.5,
+    "otMinThresholdHours": 2
   },
   "entries": {
     "마샤": [],
     "티미": [],
-    "샤론": [],
+    "샤론": [
+      {
+        "id": "178365264078008gm",
+        "date": "2026-07-06",
+        "inStart": "08:24",
+        "inEnd": "17:39"
+      }
+    ],
     "리아": [],
     "나나": [],
     "우미": [
