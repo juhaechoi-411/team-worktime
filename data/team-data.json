@@ -1,1 +1,29 @@
-{}
+{
+  "settings": {
+    "standardHours": 8,
+    "lunchEnabled": true,
+    "lunchStart": "12:30",
+    "lunchEnd": "13:30",
+    "lunchDuration": 1,
+    "dinnerEnabled": true,
+    "dinnerThresholdHours": 10,
+    "dinnerDuration": 0.5
+  },
+  "entries": {
+    "마샤": [],
+    "티미": [],
+    "샤론": [],
+    "리아": [],
+    "나나": [],
+    "우미": [
+      {
+        "id": "1783651939281m6s4",
+        "date": "2026-07-06",
+        "inStart": "08:57",
+        "inEnd": "21:59"
+      }
+    ],
+    "안나": [],
+    "클로이": []
+  }
+}
